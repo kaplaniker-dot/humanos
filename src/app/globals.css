@@ -1,26 +1,56 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* =========================================
+   humanOS — Design Tokens
+   ========================================= */
+
+@theme {
+  /* ----- Colors: Surfaces ----- */
+  --color-humanos-bg: #0a0a0a;
+  --color-humanos-surface: #111111;
+  --color-humanos-elevated: #1a1a1a;
+  --color-humanos-border: #262626;
+
+  /* ----- Colors: Text ----- */
+  --color-humanos-text: #fafafa;
+  --color-humanos-text-muted: #a3a3a3;
+  --color-humanos-text-subtle: #737373;
+
+  /* ----- Colors: Accent (Burnt Orange) ----- */
+  --color-humanos-accent: #ff6b35;
+  --color-humanos-accent-hover: #e85a2b;
+  --color-humanos-accent-glow: rgba(255, 107, 53, 0.15);
+
+  /* ----- Fonts ----- */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-inter-tight), system-ui, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* =========================================
+   Base Styles — humanOS defaults
+   ========================================= */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-humanos-bg);
+  color: var(--color-humanos-text);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings inherit display font by default */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Selection color — brand touch */
+::selection {
+  background: var(--color-humanos-accent);
+  color: var(--color-humanos-bg);
 }
