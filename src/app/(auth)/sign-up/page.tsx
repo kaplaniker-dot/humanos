@@ -91,7 +91,7 @@ export default function SignUpPage() {
 
       // Şimdilik: Ana sayfaya yönlendir
       // Sonraki adımda: /dashboard'a yönlendireceğiz
-      router.push("/");
+      router.push("/dashboard");
     } catch (err) {
       // Beklenmedik hata (network, vs.)
       console.error("[Sign-up] Unexpected error:", err);

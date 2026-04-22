@@ -82,7 +82,7 @@ export default function SignInPage() {
 
       // Ana sayfaya yönlendir
       // (İlerde: /dashboard'a yönlendireceğiz)
-      router.push("/");
+      router.push("/dashboard");
       router.refresh(); // Server component'leri yeniden render et
     } catch (err) {
       console.error("[Sign-in] Unexpected error:", err);
