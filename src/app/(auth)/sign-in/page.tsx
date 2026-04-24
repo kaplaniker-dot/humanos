@@ -16,6 +16,11 @@ import { createClient } from "@/lib/supabase/client";
  * Güvenlik Notu: Email/şifre ayrımı YAPILMAZ.
  * Tüm hatalar "E-posta veya şifre yanlış" olarak gösterilir.
  * Bu, email enumeration saldırılarına karşı savunma.
+ *
+ * İstisna: "Email not confirmed" hatası özel mesajla gösterilir.
+ * Bu hata ancak doğru email+şifre kombinasyonunda döner —
+ * yani saldırgan bu sinyali normal şekilde alamaz.
+ * Gerçek kullanıcılar için önemli bir UX iyileştirmesi.
  */
 
 // Zod schema — sadece "boş değil" kontrolü
@@ -143,15 +148,13 @@ export default function SignInPage() {
               >
                 Şifre
               </label>
-              {/* Şifremi unuttum - Placeholder (Day 6+ implement) */}
-              <button
-                type="button"
-                className="text-xs text-humanos-text-subtle hover:text-humanos-accent transition-colors cursor-not-allowed"
-                disabled
-                title="Yakında"
+              {/* Şifremi unuttum - /forgot-password sayfasına yönlendirir */}
+              <Link
+                href="/forgot-password"
+                className="text-xs text-humanos-text-subtle hover:text-humanos-accent transition-colors"
               >
                 Şifremi unuttum?
-              </button>
+              </Link>
             </div>
             <input
               id="password"
@@ -195,14 +198,26 @@ export default function SignInPage() {
 
 /**
  * Supabase sign-in hata mesajlarını Türkçe'ye çevir.
- * Güvenlik: Email/şifre ayrımı YAPILMAZ - generic mesaj.
+ *
+ * Güvenlik stratejisi:
+ * - Çoğu hata generic "e-posta veya şifre yanlış" olarak döner
+ *   (email enumeration saldırılarına karşı savunma)
+ * - İstisna: "Email not confirmed" özel mesaj — bu hata ancak
+ *   doğru email+şifre kombinasyonunda döner, yani saldırgan
+ *   bu sinyali normal şekilde alamaz. Gerçek kullanıcıya
+ *   doğru yönü göstermek için özel mesaj kullanıyoruz.
  */
 function translateSignInError(message: string): string {
-  // En sık karşılaşılan: "Invalid login credentials"
+  // Özel durum: Email doğrulanmamış
+  // Sıra kritik — bu kontrol "invalid" kontrolünden ÖNCE gelmeli
+  if (message.includes("Email not confirmed")) {
+    return "E-postanı henüz doğrulamadın. Inbox'ını kontrol et — bağlantıya tıklaman yeterli.";
+  }
+
+  // Genel: Yanlış kimlik bilgileri
   if (
     message.includes("Invalid login credentials") ||
-    message.includes("invalid") ||
-    message.includes("Email not confirmed")
+    message.includes("invalid")
   ) {
     return "E-posta veya şifre yanlış.";
   }

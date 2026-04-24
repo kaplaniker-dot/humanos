@@ -21,7 +21,17 @@ import { createClient } from "@/lib/supabase/client";
  * - Supabase auth.signUp() ✅ (GERÇEK AUTH)
  * - emailRedirectTo: /auth/callback üzerinden dashboard'a PKCE flow ✅
  * - Loading state ✅
- * - Success redirect ✅
+ * - Success state ✅ (AŞAMA 7 — "E-postanı kontrol et")
+ *
+ * UX Akışı (Day 7 sonrası):
+ * 1. Kullanıcı form doldurur
+ * 2. Zod validation + Supabase signUp
+ * 3. Başarılı ise → isSuccess=true → Success view render olur
+ *    (router.push KALDIRILDI — eskiden /dashboard'a gidiyordu,
+ *     ama email doğrulanmamış olduğu için proxy sign-in'e atıyordu.
+ *     Bug 2 Day 6 — ÇÖZÜLDÜ)
+ * 4. Kullanıcı email'ini kontrol eder, bağlantıya tıklar
+ * 5. /auth/callback üzerinden /dashboard'a login olmuş halde varır
  */
 
 // Zod schema — form validation kuralları
@@ -39,11 +49,12 @@ const signUpSchema = z.object({
 export default function SignUpPage() {
   const router = useRouter();
 
-  // Form state - 4 değişken
+  // Form state - 5 değişken
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSuccess, setIsSuccess] = useState(false);
 
   /**
    * Form submit handler
@@ -52,7 +63,7 @@ export default function SignUpPage() {
    * 3. Geçersizse hatayı göster ve dur
    * 4. Loading state aç
    * 5. Supabase'e kayıt isteği at
-   * 6. Hata varsa göster, yoksa yönlendir
+   * 6. Hata varsa göster, başarılıysa success state'e geç
    */
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -84,9 +95,6 @@ export default function SignUpPage() {
           //   1. Kullanıcı buraya (/auth/callback) düşer
           //   2. Route handler code'u session'a çevirir
           //   3. Sonra ?next= değerine yönlendirir
-          // window.location.origin → kullanıcının bulunduğu ortam:
-          //   - localhost'tan kayıt → http://localhost:3000/auth/callback?next=/dashboard
-          //   - production'dan kayıt → https://humanos-neon.vercel.app/auth/callback?next=/dashboard
           emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
         },
       });
@@ -98,12 +106,11 @@ export default function SignUpPage() {
         return;
       }
 
-      // 6b. Başarılı — kullanıcı oluştu
+      // 6b. Başarılı — kullanıcı oluştu, email yolda
       console.log("[Sign-up] Success! User ID:", data.user?.id);
 
-      // Şimdilik: Ana sayfaya yönlendir
-      // Sonraki adımda: /dashboard'a yönlendireceğiz
-      router.push("/dashboard");
+      // Success view'e geç — router.push yok, aynı sayfadayız
+      setIsSuccess(true);
     } catch (err) {
       // Beklenmedik hata (network, vs.)
       console.error("[Sign-up] Unexpected error:", err);
@@ -114,6 +121,56 @@ export default function SignUpPage() {
     }
   };
 
+  // --- SUCCESS STATE GÖRÜNÜMÜ ---
+  // Kayıt başarılı — form gizlenir, "E-postanı kontrol et" mesajı çıkar
+  if (isSuccess) {
+    return (
+      <div className="space-y-8">
+        {/* Başlık */}
+        <div className="space-y-2 text-center">
+          <div className="text-5xl mb-4">✉️</div>
+          <h1 className="text-3xl md:text-4xl font-display font-semibold tracking-tight text-humanos-text">
+            Hesabın oluşturuldu
+          </h1>
+          <p className="text-humanos-text-muted">
+            Son bir adım kaldı — e-postanı doğrula.
+          </p>
+        </div>
+
+        {/* Bilgi Kartı */}
+        <div className="bg-humanos-surface border border-humanos-border rounded-2xl p-6 md:p-8 space-y-4">
+          <p className="text-sm text-humanos-text-muted leading-relaxed">
+            <span className="text-humanos-text font-medium">{email}</span>{" "}
+            adresine bir doğrulama bağlantısı gönderdik. E-postandaki butona
+            tıklayarak hesabını aktive edebilir ve humanOS&apos;a
+            başlayabilirsin.
+          </p>
+
+          <div className="bg-humanos-bg border border-humanos-border rounded-lg px-4 py-3">
+            <p className="text-xs text-humanos-text-subtle leading-relaxed">
+              💡 E-postayı göremiyorsan{" "}
+              <strong className="text-humanos-text-muted">Spam</strong>{" "}
+              klasörüne bakmayı unutma. Bağlantı{" "}
+              <strong className="text-humanos-text-muted">24 saat</strong>{" "}
+              içinde geçerlidir.
+            </p>
+          </div>
+        </div>
+
+        {/* Giriş Yap Linki */}
+        <p className="text-sm text-humanos-text-muted text-center">
+          <Link
+            href="/sign-in"
+            className="text-humanos-accent hover:text-humanos-accent-hover transition-colors font-medium"
+          >
+            ← Giriş sayfasına dön
+          </Link>
+        </p>
+      </div>
+    );
+  }
+
+  // --- FORM GÖRÜNÜMÜ ---
   return (
     <div className="space-y-8">
       {/* Başlık Bölümü */}
