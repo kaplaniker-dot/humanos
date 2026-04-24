@@ -10,11 +10,17 @@ import { NextResponse, type NextRequest } from "next/server";
  *    - Supabase cookie'lerini okur
  *    - Token süresini kontrol eder, gerekirse yeniler
  *    - Güncellenmiş cookie'leri response'a yazar
+ *    - KRİTİK: Cookie set ederken options'ı koru — PKCE flow bu cookie'lere bağımlı
  *
- * 2. Route Protection (Day 5) — YENİ
+ * 2. Route Protection (Day 5)
  *    - Protected sayfalar (/dashboard): Session yoksa /sign-in'e yönlendir
  *    - Auth sayfalar (/sign-up, /sign-in): Session varsa /dashboard'a yönlendir
  *    - Public sayfalar (/): Herkese açık
+ *
+ * Not: /auth/callback bu middleware'den hariç tutuldu (matcher'da).
+ * Çünkü PKCE flow'unda callback route handler'ın cookie'leri
+ * kendi başına yönetmesi gerekir — middleware müdahalesi
+ * exchangeCodeForSession'ı bozabilir.
  *
  * Next.js otomatik olarak bu dosyayı çağırır.
  */
@@ -37,8 +43,12 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
+          // KRİTİK FIX: options'ı yaymayı unutma.
+          // Eski kod ({ name, value } sadece) options'ı kaybediyordu,
+          // bu da httpOnly/secure/sameSite/maxAge gibi
+          // PKCE cookie'si için kritik ayarları sıfırlıyordu.
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set({ name, value, ...options })
           );
           response = NextResponse.next({
             request,
@@ -87,14 +97,15 @@ export async function proxy(request: NextRequest) {
 /**
  * Middleware'in hangi route'larda çalışacağını belirtir.
  *
- * Hariç tutulan yollar (performans için):
+ * Hariç tutulan yollar (performans + PKCE flow için):
  * - _next/static (JS/CSS asset'leri)
  * - _next/image (optimize edilmiş görseller)
  * - favicon.ico, sitemap.xml, robots.txt
+ * - auth/callback → PKCE code exchange için — middleware müdahale etmemeli
  * - Görsel uzantılı dosyalar (svg, png, jpg, webp)
  */
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|auth/callback|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

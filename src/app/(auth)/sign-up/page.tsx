@@ -19,6 +19,7 @@ import { createClient } from "@/lib/supabase/client";
  * - Zod validation ✅
  * - Error box gösterimi ✅
  * - Supabase auth.signUp() ✅ (GERÇEK AUTH)
+ * - emailRedirectTo: /auth/callback üzerinden dashboard'a PKCE flow ✅
  * - Loading state ✅
  * - Success redirect ✅
  */
@@ -77,6 +78,17 @@ export default function SignUpPage() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          // Email doğrulama linkine tıklanınca nereye yönlenilecek.
+          // PKCE flow:
+          //   1. Kullanıcı buraya (/auth/callback) düşer
+          //   2. Route handler code'u session'a çevirir
+          //   3. Sonra ?next= değerine yönlendirir
+          // window.location.origin → kullanıcının bulunduğu ortam:
+          //   - localhost'tan kayıt → http://localhost:3000/auth/callback?next=/dashboard
+          //   - production'dan kayıt → https://humanos-neon.vercel.app/auth/callback?next=/dashboard
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        },
       });
 
       // 6a. Supabase hatası varsa
