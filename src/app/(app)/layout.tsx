@@ -1,30 +1,28 @@
-import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import LogoutButton from "./LogoutButton";
+import UserMenu from "./UserMenu";
 
 /**
  * humanOS — App Layout (Protected Routes)
  *
  * Tüm "giriş yapmış kullanıcı" sayfalarını sarar.
- * Server Component — cookies'ten session'ı direkt okur.
  *
  * İçerik:
- * - Nav bar (logo, email, logout)
+ * - Nav bar (logo, UserMenu dropdown)
  * - Main content area ({children})
  *
- * Protected route mantığı proxy.ts'de (middleware) — sonraki aşama.
+ * Protected route mantığı proxy.ts'de (middleware).
  * Bu layout sadece UI sağlar, route korumasını yapmaz.
+ *
+ * Day 8 değişikliği:
+ * - Email + LogoutButton ayrı elementler → tek UserMenu dropdown
+ * - User bilgisi UserMenu içinde fetch ediliyor (server-side)
  */
-export default async function AppLayout({
+
+export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   return (
     <div className="min-h-screen flex flex-col">
       {/* Nav Bar */}
@@ -39,22 +37,13 @@ export default async function AppLayout({
             <span className="text-humanos-accent">OS</span>
           </Link>
 
-          {/* Sağ: Kullanıcı Bilgisi + Logout */}
-          <div className="flex items-center gap-4">
-            {user?.email && (
-              <span className="text-sm text-humanos-text-muted hidden sm:inline">
-                {user.email}
-              </span>
-            )}
-            <LogoutButton />
-          </div>
+          {/* Sağ: User Menu */}
+          <UserMenu />
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
     </div>
   );
 }
