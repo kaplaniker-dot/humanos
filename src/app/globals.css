@@ -1,35 +1,65 @@
 @import "tailwindcss";
 
 /* =========================================
-   humanOS — Design Tokens
+   humanOS — Design Tokens (Paper Theme)
+   Day 10 — Conversation Mode rebrand
    ========================================= */
-
 @theme {
-  /* ----- Colors: Surfaces ----- */
-  --color-humanos-bg: #0a0a0a;
-  --color-humanos-surface: #111111;
-  --color-humanos-elevated: #1a1a1a;
-  --color-humanos-border: #262626;
+  /* ----- Surfaces (warm paper, not screen) ----- */
+  --color-humanos-bg: #FAF7F2;
+  --color-humanos-surface: #FFFFFF;
+  --color-humanos-elevated: #F7F2EA;
+  --color-humanos-subtle: #F4F0E8;
+  --color-humanos-border: #E8E3D9;
+  --color-humanos-border-strong: #D6CFC2;
+  --color-humanos-border-faint: #F0EDE6;
 
-  /* ----- Colors: Text ----- */
-  --color-humanos-text: #fafafa;
-  --color-humanos-text-muted: #a3a3a3;
-  --color-humanos-text-subtle: #737373;
+  /* ----- Text (warm dark, not pure black) ----- */
+  --color-humanos-text: #1A1814;
+  --color-humanos-text-muted: #6B6660;
+  --color-humanos-text-subtle: #9A958D;
 
-  /* ----- Colors: Accent (Burnt Orange) ----- */
-  --color-humanos-accent: #ff6b35;
-  --color-humanos-accent-hover: #e85a2b;
-  --color-humanos-accent-glow: rgba(255, 107, 53, 0.15);
+  /* ----- Brand (terracotta + amber) ----- */
+  --color-humanos-accent: #C8553D;
+  --color-humanos-accent-hover: #B0432F;
+  --color-humanos-accent-soft: #C8553D14;
+  --color-humanos-accent-tint: #C8553D08;
+  --color-humanos-amber: #D4A04A;
+  --color-humanos-amber-soft: #D4A04A14;
+
+  /* Backwards compat — legacy glow var name */
+  --color-humanos-accent-glow: rgba(200, 85, 61, 0.15);
+
+  /* ----- Dimension Accents (Conversation Mode) ----- */
+  --color-dim-nutrition: #E07856;
+  --color-dim-exercise: #7A9471;
+  --color-dim-blood: #A8556B;
+  --color-dim-habits: #6B8CA8;
+
+  /* ----- Semantic Accents ----- */
+  --color-humanos-sage: #7A9471;
+  --color-humanos-rose: #A8556B;
+  --color-humanos-slate-blue: #6B8CA8;
 
   /* ----- Fonts ----- */
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-display: var(--font-inter-tight), system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* ----- Easings ----- */
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ----- Shadows (soft, paper-like) ----- */
+  --shadow-paper-sm: 0 1px 2px rgba(26, 24, 20, 0.04);
+  --shadow-paper-md: 0 4px 12px rgba(26, 24, 20, 0.06);
+  --shadow-paper-lg: 0 12px 32px rgba(26, 24, 20, 0.08);
 }
 
 /* =========================================
    Base Styles — humanOS defaults
    ========================================= */
-
 html {
   scroll-behavior: smooth;
 }
@@ -43,14 +73,82 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Headings inherit display font by default */
+/* Headings — by default Inter Tight (display font) */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
-/* Selection color — brand touch */
+/* Serif heading utility — opt-in via class="font-serif" */
+.font-serif {
+  font-family: var(--font-serif);
+  letter-spacing: -0.015em;
+}
+
+/* Mono utility — for numbers, data, debug */
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Selection color — terracotta touch */
 ::selection {
-  background: var(--color-humanos-accent);
-  color: var(--color-humanos-bg);
+  background: var(--color-humanos-accent-soft);
+  color: var(--color-humanos-accent-hover);
+}
+
+/* Focus ring — accessible, soft */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-humanos-accent-soft);
+  border-radius: 6px;
+}
+
+/* =========================================
+   Animations
+   ========================================= */
+@keyframes humanos-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.15); opacity: 0.45; }
+}
+
+@keyframes humanos-pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+@keyframes humanos-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes humanos-heartbeat {
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.05); }
+  60% { transform: scale(0.98); }
+}
+
+@keyframes humanos-screen-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Animation utility classes */
+.animate-breathe {
+  animation: humanos-breathe 8s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: humanos-pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: humanos-float 4s ease-in-out infinite;
+}
+
+.animate-heartbeat {
+  animation: humanos-heartbeat 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-screen-in {
+  animation: humanos-screen-in 600ms cubic-bezier(0.16, 1, 0.3, 1);
 }

@@ -37,7 +37,7 @@ const dimsList = [
     description: "Hareket düzenin",
   },
   {
-    value: "bloodwork",
+    value: "blood",
     label: "Kan Değerleri",
     emoji: "🩸",
     description: "Sağlık göstergeleri",

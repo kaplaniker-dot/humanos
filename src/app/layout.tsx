@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Inter_Tight } from "next/font/google";
+import { Inter, Inter_Tight, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 // Body font — gövde metinleri, paragraflar, arayüz
@@ -9,17 +9,32 @@ const inter = Inter({
   display: "swap",
 });
 
-// Display font — başlıklar, hero, büyük metinler
+// Display font — başlıklar, hero, büyük metinler (modern sans)
 const interTight = Inter_Tight({
   variable: "--font-inter-tight",
   subsets: ["latin"],
   display: "swap",
 });
 
+// Serif font — şiirsel başlıklar, "Conversation Mode" anlatısı
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz", "SOFT"],
+});
+
+// Mono font — sayılar, veri, debug, kod
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "humanOS — High-Performance Coaching Platform",
+  title: "humanOS — Hayatı tasarla, biyolojini anla",
   description:
-    "humanOS is a science-backed coaching platform designed for people who want to engineer their energy, focus, and longevity. Track, understand, transform.",
+    "humanOS, biyolojini anlayıp hayatını bilinçle tasarlamak için kurulan bir longevity ve yüksek performans platformudur. İçinde nefes al, dışında inşa et.",
 };
 
 export default function RootLayout({
@@ -29,8 +44,8 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${inter.variable} ${interTight.variable} h-full antialiased`}
+      lang="tr"
+      className={`${inter.variable} ${interTight.variable} ${fraunces.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body
         className="min-h-full flex flex-col bg-humanos-bg text-humanos-text font-sans"

@@ -30,7 +30,7 @@ type AssessmentForResume = {
 const dimsLabels: Record<string, { label: string; emoji: string }> = {
   nutrition: { label: "Beslenme", emoji: "🍎" },
   exercise: { label: "Egzersiz", emoji: "💪" },
-  bloodwork: { label: "Kan Değerleri", emoji: "🩸" },
+  blood: { label: "Kan Değerleri", emoji: "🩸" },
   habits: { label: "Alışkanlıklar", emoji: "🔄" },
 };
 
