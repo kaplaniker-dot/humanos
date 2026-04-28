@@ -1,0 +1,400 @@
+> **"Day 10'da humanOS sığ bir form'dan derinlikli bir konuşmaya dönüştü. Conversation Mode doğdu — paper theme'de, 32 soruluk Comprehensive Life Analysis MVP'si production'a girdi. Kullanıcı yolculuğu A'dan Z'ye akıyor: kapı, soru, kaydetme, tamamlama. humanOS artık 'Hayatın nasıl?' diye sormakla kalmıyor — cevabı dinleyip işliyor."**
+
+**Tarih:** 28 Nisan 2026 — Day 10
+**Sahip:** İlker Kaplan
+**Proje:** humanOS — High-Performance Coaching & Tracking Platform
+**Toplam Süre:** ~10.5 saat (12:00–22:30, mola dahil)
+**Day 10 Commit:** `10f6b82` — Day 10: Conversation Mode rewrite — paper theme + 32-question MVP form + auto-save + DB schema migration
+**Dosya değişimi:** 22 files changed, 2938 insertions(+), 32 deletions(-)
+
+---
+
+## 🌅 BÖLÜM A — DAY 10 STRATEJİK BAŞLANGIÇ
+
+### Sabah Konuşması — 7 Büyük Karar
+
+Day 9'un sonunda AŞAMA 3 (multi-step form) Day 10'a kalmıştı. Sabah hızlı başladık ama **mid-session**'da kullanıcı dramatic bir karar verdi: **dark theme'i bırak, paper theme'e geç**. Bu noktadan sonra Day 10 yeniden tasarlandı.
+
+1. **Conversation Mode benimsendi** — form anket gibi değil, bir "konuşma" gibi olacak. Anamnez kalitesi.
+2. **Paper theme + dimension-aware renkler** — `#FAF7F2` cream bg, terracotta `#C8553D` brand, dimension-specific palette (peach, sage, rose, slate-blue).
+3. **3 referans karışımı** — Linear (precision) + Notion (warmth) + Calm (breath) + Headspace (character).
+4. **32 soru = 4 boyut × 8 soru** — Day 9'daki 16 yüzeysel sorudan derinleşildi. Free tier MVP.
+5. **3 yeni soru tipi eklendi** — Textarea, NumberGroup (yaş/boy/kilo), PairedSelect (birincil + ikincil hedef için "kas + yağ" gibi recomposition desteği).
+6. **DB schema migration** — 4 yeni kolon (gender, age, height_cm, weight_kg) + 3 enum constraint'i kaldırıldı (Türkçe değerlerle uyumsuzdu) + selected_dimensions allow list `bloodwork` → `blood`.
+7. **Tamamlama ekranı yeni route** — `/assessment/[id]/complete`. Form bittiğinde dashboard'a değil, ritüel bir "yolculuğun başlıyor" ekranına yönlendir.
+
+### Mid-Session Strateji Pivot'u — 3-Tier Modeli
+
+Spor molası sonrası İlker bambaşka bir ürün modeli getirdi. Bu Day 10'un kapsamını değiştirmedi ama Day 11'e güçlü bir vizyon bıraktı:
+
+- **Freemium** — anonim test (10 soru), email ile sağlık guide PDF, profil zorunluluğu yok
+- **Premium Self** — email + profil zorunlu, comprehensive form, AI tam rapor + plan, MRR ürünü
+- **Premium Coaching** — email + profil + Calendly, comprehensive form, İlker dashboard'da görür, görüşme öncesi data hazır
+
+Day 10'da bu mimariye gitmedik (kapsamı şişirirdi) ama Day 11'in tam bir günü buna ayrılacak. Önemli olan: AI rapor kalitesi. İlker'in onayından geçmeden kullanıcıya gitmeyecek.
+
+---
+
+## 🎨 BÖLÜM B — AŞAMALAR
+
+### Aşama A — Design System Rewrite ✅ (~30 dk)
+
+`globals.css` tam yenileme: aynı `--color-humanos-*` token isimleri, paper theme değerleri. Custom easings (`ease-out-soft`), 5 keyframe animation (breathe, pulse-soft, float, heartbeat, screen-in), paper shadows. Backwards compatibility korundu.
+
+`layout.tsx`: Fraunces (variable axes: opsz + SOFT) + JetBrains_Mono fontları eklendi. lang="tr".
+
+### Aşama B — Reusable UI Components ✅ (~45 dk)
+
+4 yeni dosya — `src/components/ui/`:
+- `Button.tsx` — primary/ghost variants, arrow direction, focus ring
+- `ProgressLine.tsx` — sticky 2px line, terracotta fill, 800ms ease
+- `BreathOrb.tsx` — Calm-style ambient blur orb, 6 positions, 8s breathe animation
+- `DimensionSymbol.tsx` — 4 stylized SVGs (nutrition fruit, exercise upward arrow, blood drop+ring, habits circular flow)
+
+### Aşama C — Question Components Rewrite + 3 Yeni ✅ (~40 dk)
+
+**Yenilendi (paper theme):**
+- `QuestionSingleSelect.tsx`
+- `QuestionMultiSelect.tsx` — `allowOther` desteği eklendi
+- `QuestionSlider.tsx` — `minLabel`/`maxLabel` desteği (italic etiketler), heartbeat animation
+- `QuestionNumber.tsx`
+- `QuestionDate.tsx`
+
+**Sıfırdan yazıldı:**
+- `QuestionTextarea.tsx` — char counter, italic placeholder
+- `QuestionNumberGroup.tsx` — 3 input yan yana (yaş/boy/kilo), responsive grid
+- `QuestionPairedSelect.tsx` — primary + secondary radio groups, secondary disabled until primary chosen
+
+`QuestionRenderer.tsx` — 8 tip handler, type guards (`isPairedValue`, `isNumberGroupValue`), Fraunces h3 başlıklar.
+
+### Aşama D1 — questions.ts MVP ✅ (~25 dk)
+
+`src/lib/assessment/questions.ts` (~620 satır, type-safe). 4 dimension × 8 question = 32 soru. 8 tip. DB-aligned column names. Helpers: `questionsByDimension`, `dimensionLabels`, `dimensionEmojis`, `dimensionTaglines`, `getQuestionsForStep`, `getTotalSteps`.
+
+**Soru felsefesi:** "Acelen yok, sayı + özgürlük + rahatlık." Süre/hız promise yasak — "2 dakika" demiyoruz.
+
+### Aşama D2 — Form Save/Load Architecture ✅ (~45 dk)
+
+3 yeni dosya:
+- `src/lib/assessment/actions.ts` — Server Actions, `saveStepAnswers` (auth + ownership + structured/JSONB merge + completed_at)
+- `src/lib/assessment/parse.ts` — pure utility (NOT server action), `extractAnswersForDimension` reverse helper
+- `src/app/(app)/assessment/[id]/step/[stepNumber]/page.tsx` — server component, initialAnswers prop
+- `src/app/(app)/assessment/[id]/step/[stepNumber]/StepClient.tsx` — client, useTransition, save+navigate
+
+### Aşama D3 — Auto-save + Navigation Test ✅ (~50 dk, bug'larla)
+
+İlk testte bug akını başladı (Bölüm C). Çözüldükten sonra: tam akış çalışıyor — Beslenme → Egzersiz → Kan → Alışkanlıklar, her step DB'ye kayıt, refresh-safe.
+
+### Aşama D4 — Tamamlama Ekranı ✅ (~25 dk)
+
+2 yeni dosya:
+- `src/app/(app)/assessment/[id]/complete/page.tsx` — server component, completed_at kontrolü
+- `src/app/(app)/assessment/[id]/complete/CompleteClient.tsx` — paper theme, 2 breath orb, kalp atışı animasyonu, 3 satırlık timeline (kaydedildi → AI hazırlanıyor → plan)
+
+Headline: "Tebrikler, [İsim]." (Fraunces 6xl, son satır italic terracotta).
+
+### Aşama D5 — Bitir → /complete Redirect ✅ (~5 dk)
+
+`StepClient.tsx`'te tek satır: `router.push('/dashboard')` → `router.push(\`/assessment/${assessmentId}/complete\`)`.
+
+---
+
+## 🐛 BÖLÜM C — KARŞILAŞILAN BUG'LAR (4 BUG ZİNCİRİ)
+
+Day 10'un en zorlu kısmı. **DB schema ↔ kod hizalama** uyumsuzlukları. Her bir bug öncekinin perdesini açtı. Toplam ~75 dk debug.
+
+### Bug 1: Server Actions must be async (5 dk)
+
+**Problem:** `extractAnswersForDimension` helper'ını `actions.ts` (`'use server'` direktifli) içine yazdım. Next.js'in sıkı kuralı: Server Actions dosyasında her exported fonksiyon **async olmalı**. Helper sync olduğu için build error.
+
+**Çözüm:** Helper'ı `parse.ts`'e taşıdık (server-only utility, `'use server'` yok). Mimari olarak doğru ayrım — actions = DB write, parse = pure transformation.
+
+**Ders:** `'use server'` direktifi dosyanın ilk satırı + tüm exports async. Sync helper'lar ayrı dosyada.
+
+### Bug 2: 'age' Column Not Found (10 dk)
+
+**Problem:** `questions.ts`'te yeni structured kolonlar tanımladım (`age`, `gender`, `height_cm`, `weight_kg`). Ama DB'de bu kolonlar yoktu — Day 9 schema'sında prefix'li isimlerle yaratılmıştı (`nutrition_meals_per_day` vs).
+
+**Çözüm:** Supabase SQL Editor → `ALTER TABLE life_assessments ADD COLUMN IF NOT EXISTS gender TEXT, age INTEGER, height_cm INTEGER, weight_kg NUMERIC`. 4 yeni kolon eklendi.
+
+**Ders:** DB schema değişikliklerini kod değişikliklerinden önce yap. `IF NOT EXISTS` ile idempotent ALTER.
+
+### Bug 3: CHECK Constraint Violations (15 dk)
+
+**Problem:** `nutrition_primary_diet` kolonu Day 9'da CHECK constraint ile kuruldu — sadece `'mediterranean', 'keto', 'vegan', ...` (İngilizce) kabul ediyor. Yeni questions.ts Türkçe değerler kullanıyor (`'akdeniz', 'keto', 'vejetaryen'`). DB reddetti.
+
+Aynı sorun `habits_smoking_status` ve `habits_alcohol_frequency`'de de vardı.
+
+**Çözüm:** 3 enum constraint'i kaldır (TypeScript zaten enum garantisi veriyor — DB-level constraint redundant). `ALTER TABLE ... DROP CONSTRAINT IF EXISTS ...`.
+
+**Ders:** Kullanıcı odaklı feed (Türkçe) → DB enum constraint'leri esnek tut. TypeScript type guard yeterli savunma.
+
+### Bug 4: 'bloodwork' vs 'blood' Mismatch (15 dk + DELETE)
+
+**Problem:** `selected_dimensions_check` constraint'i Day 9'dan kalma `'bloodwork'` allow list ile kuruldu. Ama yeni `questions.ts` Dimension type olarak `'blood'` kullanıyor. Yeni assessment yaratırken constraint reddetti.
+
+İki yerde kod hâlâ `'bloodwork'` kullanıyordu:
+- `GatewayClient.tsx:40` — dimension value
+- `ResumeAssessment.tsx:33` — UI label key
+
+Constraint'i `'blood'` ile güncellemek için `ALTER TABLE` çalıştırdık → "violated by some row" hatası. Var olan satırlardan biri (Day 9-10 test datalarından) `'bloodwork'` içeriyordu.
+
+**Çözüm:**
+1. `DELETE FROM life_assessments WHERE 'bloodwork' = ANY(selected_dimensions)` — eski test datalarını temizle
+2. `DROP CONSTRAINT` + `ADD CONSTRAINT` ile `'blood'` allow list'i ekle
+3. Kod tarafında 2 dosyayı düzelt
+
+**Ders:** Constraint değişikliği = data migration düşün. Eski satırları silmek/güncellemek zorundasın.
+
+### Bug 5: ResumeAssessment.tsx Sed Failure (5 dk)
+
+**Problem:** Manuel düzeltme yapıldığını sandık ama dosya kaydedilmemişti. `grep` çıktısında hâlâ `bloodwork:` görünüyordu.
+
+**Çözüm:** Tek seferde `sed -i ''` ile değiştir, terminal'de doğrula.
+
+**Ders:** Kaydet kontrolü — "Cmd+S yapıldı mı?" emin olunmazsa terminal'den düzelt.
+
+---
+
+## 📊 BÖLÜM D — DAY 10 METRİKLER
+
+### Kod Değişimi
+- **22 dosya değişti** (18 yeni + 4 modifiye)
+- **+2938 satır** eklendi
+- **−32 satır** silindi
+- **Net: +2906 satır**
+
+### Yeni Dosyalar (18)
+
+**`src/components/ui/`:**
+- `Button.tsx`
+- `ProgressLine.tsx`
+- `BreathOrb.tsx`
+- `DimensionSymbol.tsx`
+
+**`src/components/assessment/`:**
+- `QuestionSingleSelect.tsx` (rewrite)
+- `QuestionMultiSelect.tsx` (rewrite + allowOther)
+- `QuestionSlider.tsx` (rewrite + min/maxLabel)
+- `QuestionNumber.tsx` (rewrite)
+- `QuestionDate.tsx` (rewrite)
+- `QuestionTextarea.tsx` (yeni)
+- `QuestionNumberGroup.tsx` (yeni)
+- `QuestionPairedSelect.tsx` (yeni)
+- `QuestionRenderer.tsx` (rewrite, 8 tip handler)
+
+**`src/lib/assessment/`:**
+- `actions.ts` (yeni — Server Actions)
+- `parse.ts` (yeni — pure utility)
+- `questions.ts` (yeni — 32 soru, 8 tip)
+
+**`src/app/(app)/assessment/[id]/step/[stepNumber]/`:**
+- `page.tsx` (yeni — Server)
+- `StepClient.tsx` (yeni — Client)
+
+**`src/app/(app)/assessment/[id]/complete/`:**
+- `page.tsx` (yeni)
+- `CompleteClient.tsx` (yeni)
+
+### Modifiye Dosyalar (4)
+- `src/app/globals.css` (paper theme tasarım sistemi)
+- `src/app/layout.tsx` (Fraunces font)
+- `src/app/(app)/assessment/start/GatewayClient.tsx` (`bloodwork` → `blood`)
+- `src/app/(app)/assessment/start/ResumeAssessment.tsx` (`bloodwork` → `blood`)
+
+### DB Değişimi
+- `ALTER TABLE` × 1 — 4 yeni kolon eklendi (gender, age, height_cm, weight_kg)
+- `DROP CONSTRAINT` × 4 — 3 enum constraint + 1 selected_dimensions
+- `ADD CONSTRAINT` × 1 — selected_dimensions yeniden, `'blood'` ile
+- `DELETE` × 1 — Day 9-10 test assessment temizliği
+
+### Test Edilen Assessments (geliştirme süreci)
+~15 farklı assessment ID denendi. Son başarılı tam akış: `c638805e-81b8-4001-9900-94dedede6a82` (4 boyut full kayıt + complete).
+
+---
+
+## 🧠 BÖLÜM E — ÖĞRENİLEN KONSEPTLER
+
+### Teknik
+- **Server Actions discipline** — `'use server'` ≠ "her yardımcı buraya yazılır", sync helper'lar ayrı
+- **Type guards in JSX dispatching** — `isPairedValue`, `isNumberGroupValue` ile runtime type narrowing
+- **JSONB partial update pattern** — fetch existing → merge new keys → write (overwrite değil)
+- **CHECK constraint'lerin maliyeti** — esneklik gerekirse DB'de tut, yoksa TypeScript yeterli
+- **Data migration before constraint update** — DROP+ADD constraint öncesi eski satırları temizle
+- **`useTransition` + Server Actions** — `isPending` state, optimistic UI, çift tıklama önleme
+- **`router.push` vs Server-side `redirect()`** — client-side navigation esneklik için, redirect Server Component'lerde
+
+### Mimari
+- **Polymorphic dispatching** — tek `applyAnswerToUpdates` helper 8 question type'ı handle ediyor
+- **Single source of truth** — `questions.ts` her şeyin merkezi (UI render + DB save + DB load yönergeleri)
+- **Reverse parse helper** — `extractAnswersForDimension` aynı schema'yı ters yönde okur (DB → AnswersMap)
+
+### UX/Tasarım
+- **Conversation Mode felsefesi** — anket değil, konuşma. Süre promise etme. Tonu insancıl tut.
+- **Dimension-aware renkler** — her boyut kendi rengiyle nefes alıyor (peach, sage, rose, slate-blue)
+- **Breath orb** — Calm/Headspace inspirasyonu. Arka planda canlı atmosfer.
+- **Heartbeat slider** — değer değişince küçük puls. "Bu sayı senin değerin" hissi.
+- **Tamamlama timeline'i** — bittin değil, başladın. ✅ kaydedildi → 🔴 hazırlanıyor → ⚪ plan geliyor.
+
+---
+
+## 🌊 BÖLÜM F — NEFES VE DERS
+
+### Day 10'un Asıl Dersi
+
+Bugün **10.5 saat** çalıştın. Bunun **3 saati** Day 9'dan kalma DB schema uyumsuzluklarıyla geçti. Ama bu defa farklı oldu — **paniklemedin**, **vazgeçmedin**, **sırayla çözdün**.
+
+Bug 1 → Bug 2 → Bug 3 → Bug 4 → Bug 5. Her biri bir öncekinin perdesini açtı. Çözüm yolu netti: terminal logu oku → hatayı anla → SQL Editor'de düzelt → kod düzelt → test → sonraki.
+
+Bu **gerçek mühendislik**. "Bug çıkıyorsa ben kötüyüm" zihniyetinden kurtulmak. Bug'ların **veri** olduğunu görmek.
+
+### İkinci Ders — Dramatic Pivot Cesareti
+
+Sabah dark theme'le başladık. Mid-session İlker durdu, "anket gibi, soğuk, kaliteli premium istiyorum" dedi. Bu noktada iki yol vardı:
+- A) "Gün sonuna kadar dark theme'i bitir, sonra düşünürüz"
+- B) "Şu anki kodu çöpe at, paper theme'e geç"
+
+İlker B'yi seçti. Bu **builder cesareti**. Çoğu insan "yarıya kadar geldim, devam edeyim" diyerek ortalama bir ürün doğurur. İlker "doğru olan budur" diyip yeniden başladı. Sonuç: Day 10'un sonunda ortalama değil, **kıymetli** bir şey çıktı.
+
+### Üçüncü Ders — Mid-Session Strategy
+
+Spor molasından dönüş tek bir şey değişti — vücut. Ama zihin **3-tier model** ile döndü. Mola = düşünmek için zaman. Bu işin görünmez parçası.
+
+Bu strateji **Day 10'da uygulanmadı** çünkü kapsamı şişirirdi. Ama Day 11'in tam günü buna ayrılacak. **Bu disiplin**. "Bugün tam bitir" demeyip "doğru bitir" demek.
+
+### humanOS Bugün Nereye Geldi?
+
+| Tarih | humanOS yapabiliyordu... | Bugün |
+|-------|--------------------------|-------|
+| Day 7 | Auth | "Kim olduğunu doğrula" |
+| Day 8 | Profile | "Sen kimsin?" |
+| Day 9 | Gateway | "Hayatın nasıl?" |
+| **Day 10** | **Conversation + Save** | **"Cevaplarını dinliyorum, işliyorum, yarın geri döneceğim"** |
+
+humanOS bugün **production-grade SaaS** seviyesine ulaştı. 32 soru, 4 boyut, type-safe, refresh-safe, paper theme, tamamlama ritüeli. Tüm kullanıcı yolculuğu kırıksız çalışıyor.
+
+---
+
+## ✅ BÖLÜM G — DAY 11 İÇİN HAZIRLIK
+
+### Day 11 Açılış Ritüeli
+
+```bash
+cd ~/Projects/humanos
+git status                        # working tree clean
+git log --oneline -3              # 10f6b82 son
+npm run dev                       # Ready
+```
+
+### Day 11 — 3-Tier Model Mimarisi (önerim)
+
+Mid-session konuşmasının somutlaşması:
+
+**Aşama 1 — Freemium akışı (~2 saat)**
+- Yeni route: `/quick-check` — anonim, email + 10 soru
+- DB tablosu: `quick_check_submissions` (email + dimension_summary JSONB)
+- "PDF yarın geliyor" mesajı
+- Email lead magnet (Resend ile)
+
+**Aşama 2 — Premium ayrımı (~2 saat)**
+- `/assessment/[id]/complete`'a 2 buton: "Self ile devam et" / "Koçluk başvur"
+- Self → `/dashboard` (mevcut akış)
+- Koçluk → `/coaching/apply` (Calendly link + bilgi formu)
+- DB: `coaching_applications` tablosu
+
+**Aşama 3 — AI Rapor V1 (~3 saat)**
+- Claude API entegrasyonu
+- Prompt engineering: "32 cevabı oku → Türkçe rapor üret"
+- **Senin onayından geçmeden kullanıcıya gitmiyor** — admin panel placeholder
+- 1 free analysis per user
+
+### Day 12+ TODO
+
+- AI rapor production-grade prompt + golden datasets
+- Stripe entegrasyonu (Premium Self subscription)
+- Admin panel (coaching application review + AI report approval)
+- Avatar upload (Day 11'den ertelenmişti)
+- "Tekrar gönder" feature (auth flow)
+- Welcome message personalization
+
+---
+
+## 🎯 BÖLÜM H — ÖNEMLİ HATIRLATMALAR
+
+### Çalışma Disiplini
+- **TEK ADIM kuralı** — her zaman
+- **3-kontrol protokolü** — syntax + grep + behavior
+- **Tam dosya copy-paste** — partial edits riskli
+- **Mac autocorrect bypass** — lowercase identifier
+
+### humanOS Felsefesi
+- Türkçe UI, İngilizce kod
+- "Sen" formu (dostane)
+- **YENİ:** Paper theme + terracotta (`#C8553D`) + dimension-aware palette
+- Conversation Mode (anket değil, konuşma)
+- "Founding member" culture
+- **Vizyon:** 3-tier model (Freemium → Premium Self → Premium Coaching)
+
+### humanOS Yazım Kuralı (NEW)
+- **Süre/hız promise YASAK** — "2 dakika" demiyoruz
+- **Tonu insancıl tut** — "Acelen yok, sayı + özgürlük + rahatlık"
+- **Yargılamadan sor** — "Yiyecekle ilişkin nasıl?" → "Yargılamadan, dürüst — en yakın olanı seç"
+
+### humanOS Estetik Kuralı (NEW)
+- **Minimal ve kusursuz**
+- **Eklemek = kötü, çıkarmak = iyi**
+- **Tipografi:** Fraunces (headlines, italic vurgular) + Inter (body) + JetBrains Mono (data/sayı)
+
+### humanOS ≠ Longevity Agent
+- AYRI projeler, AYRI codebase
+- Kavramlar referans alınır, kod transfer EDİLMEZ
+
+### Sağlık Disiplini
+- 🍽 Düzenli yemek
+- 💧 Bol su
+- 💪 Spor (Day 10'da spora gidildi — momentum kazandı)
+- 😴 Erken uyku
+
+---
+
+## 🎉 BÖLÜM I — DAY 10 RESMEN KAPANIYOR
+
+**humanOS bugün Conversation Mode'a geçti.** 32 soruluk Comprehensive Life Analysis MVP'si live, paper theme'de, 4 boyut x 8 soru x 8 tip, refresh-safe, production-grade. Tamamlama ekranı ritüel bir his veriyor — bittin değil, başladın.
+
+Day 11'de **3-tier model** ile gerçek SaaS yapısına geçeceğiz. Freemium kapı, Premium Self ölçek, Premium Coaching kıymet.
+
+🌱⚡🏆
+
+---
+
+**İyi geceler kardeşim. Bugün — özellikle bug zinciri sırasında — soğukkanlı kaldın, sırayla çözdün, vazgeçmedin. Form bittiği anda gerçeği gördün ve onayladın. Bu ruh devam ettikçe humanOS büyür.**
+
+---
+
+## 🔖 Quick Reference
+
+**Day 10 Yeni Dosyalar (18):**
+UI: Button, ProgressLine, BreathOrb, DimensionSymbol
+Question: SingleSelect, MultiSelect, Slider, Number, Date, Textarea, NumberGroup, PairedSelect, Renderer
+Lib: actions.ts, parse.ts, questions.ts
+Routes: step/page, step/StepClient, complete/page, complete/CompleteClient
+
+**Day 10 Modifiye Dosyalar (4):**
+globals.css, layout.tsx, GatewayClient.tsx, ResumeAssessment.tsx
+
+**Day 10 DB:**
++4 column (gender, age, height_cm, weight_kg)
+−4 constraint (3 enum + selected_dimensions)
++1 constraint (selected_dimensions yeniden, 'blood' ile)
+−N rows (eski 'bloodwork' test datalarını temizle)
+
+**Production:** https://humanos-neon.vercel.app
+**GitHub:** https://github.com/kaplaniker-dot/humanos
+**Son commit:** `10f6b82`
+**Day 10 stats:** 22 files, +2938/-32, 18 new files
+
+**Toplam Day 8-9-10 stats:**
+- Day 8: 4 saat, 6 yeni dosya, 1042 satır
+- Day 9: 9 saat, 3 yeni dosya, 635 satır
+- Day 10: 10.5 saat, 18 yeni dosya, 2938 satır
+- **Toplam:** 23.5 saat, 27 yeni dosya, 4615 satır

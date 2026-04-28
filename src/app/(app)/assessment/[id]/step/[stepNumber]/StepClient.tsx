@@ -1,7 +1,7 @@
 // src/app/(app)/assessment/[id]/step/[stepNumber]/StepClient.tsx
 // Client Component: state + soru render + auto-save + navigation
 // Conversation Mode — paper theme, dimension-aware
-// D3c — gerçek navigation + DB kayıt
+// D5 — Bitir butonu /complete sayfasına yönlendiriyor
 
 'use client'
 
@@ -85,10 +85,10 @@ export function StepClient({
         return
       }
 
-      // Başarılı kaydı sonrası yönlendirme
+      // Başarılı kayıt sonrası yönlendirme
       if (direction === 'next') {
         if (isLastStep) {
-          router.push('/dashboard')
+          router.push(`/assessment/${assessmentId}/complete`)
         } else {
           router.push(`/assessment/${assessmentId}/step/${currentStep + 1}`)
         }
