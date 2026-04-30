@@ -1,9 +1,12 @@
 // src/app/api/generate-report/route.ts
 // POST /api/generate-report
 // Day 11 V1 — Premium AI rapor üretim endpoint'i
+// Day 12 fix — DB insert için service role client (RLS auth.uid() resolution sorunu)
+// Day 12 cleanup — diagnostic raw_response field error response'tan kaldırıldı
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service'
 import { generatePremiumReport } from '@/lib/mira/report-generator'
 import type { AssessmentRow } from '@/lib/assessment/parse'
 
@@ -38,7 +41,7 @@ function isValidBody(body: unknown): body is GenerateReportBody {
 
 export async function POST(req: Request) {
   try {
-    // ─── Step 1: Auth check ───
+    // ─── Step 1: Auth check (user session client) ───
     const supabase = await createClient()
     const {
       data: { user },
@@ -143,19 +146,26 @@ export async function POST(req: Request) {
     )
 
     if (!result.success) {
-      console.error('[generate-report] Mira generation failed:', result.error)
+      // Server-side log: ham raporu ve detayı server log'a düş, response'a sızdırma
+      console.error('[generate-report] Mira generation failed:', {
+        error: result.error,
+        timing_ms: result.timing_ms,
+        raw_response_length: result.raw_response?.length ?? 0,
+      })
       return NextResponse.json(
         {
           success: false,
           error: 'generation_failed',
-          message: result.error,
         },
         { status: 500 },
       )
     }
 
-    // ─── Step 7: Save to ai_reports table ───
-    const { data: savedReport, error: insertErr } = await supabase
+    // ─── Step 7: Save to ai_reports table (service role — RLS bypass) ───
+    // Auth + ownership check zaten Step 1+3'te yapıldı.
+    // Service client ile RLS'i bypass ederek atomik insert yapıyoruz.
+    const supabaseAdmin = createServiceClient()
+    const { data: savedReport, error: insertErr } = await supabaseAdmin
       .from('ai_reports')
       .insert({
         user_id: user.id,
@@ -179,7 +189,6 @@ export async function POST(req: Request) {
         {
           success: false,
           error: 'db_insert_failed',
-          message: insertErr?.message,
         },
         { status: 500 },
       )
@@ -203,7 +212,6 @@ export async function POST(req: Request) {
       {
         success: false,
         error: 'internal_error',
-        message: err instanceof Error ? err.message : 'unknown',
       },
       { status: 500 },
     )

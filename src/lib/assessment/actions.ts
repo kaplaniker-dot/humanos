@@ -1,6 +1,7 @@
 // src/lib/assessment/actions.ts
 // Server Actions for assessment form
 // Day 10 Aşama D3a — saveStepAnswers
+// Day 12 fix — status='completed' eklendi (Day 10 bug)
 // (extractAnswersForDimension parse.ts'e taşındı)
 
 'use server'
@@ -184,6 +185,7 @@ export async function saveStepAnswers(params: {
 
   if (isLastStep) {
     updatePayload.completed_at = new Date().toISOString()
+    updatePayload.status = 'completed'
   }
 
   const { error: updateError } = await supabase
