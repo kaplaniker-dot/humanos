@@ -44,3 +44,5 @@ output/
 # Environment variables
 .env.local
 .env*.local
+# Daily scratch notes (kişisel, journal'a taşınır gün sonu)
+**/SCRATCH.md
