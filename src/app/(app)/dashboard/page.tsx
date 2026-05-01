@@ -17,6 +17,9 @@ import { getUserQuotaStatus } from "@/lib/mira/quota";
  *
  * Server Component — kullanıcı bilgisini cookies'ten okur,
  * onaylı rapor + Mira quota durumunu service client ile çeker.
+ *
+ * Day 14 borç temizliği: firstName artık profiles.full_name'den geliyor
+ * (önceden email-prefix kullanılıyordu — Day 8'den beri açık borçtu).
  */
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -24,15 +27,30 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const firstName = user?.email?.split("@")[0] ?? "dostum";
-
   // Service client — RLS bypass, kesin veri (Day 12 pattern'i)
+  let firstName = "dostum";
   let hasApprovedReport = false;
   let quotaRemaining = 3;
   let quotaTier: "freemium" | "premium" = "freemium";
 
   if (user) {
     const serviceClient = createServiceClient();
+
+    // Profile'dan full_name çek — öncelik sırası:
+    // 1. profiles.full_name'in ilk kelimesi
+    // 2. email-prefix (fallback)
+    // 3. "dostum" (son fallback)
+    const { data: profile } = await serviceClient
+      .from("profiles")
+      .select("full_name")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.full_name) {
+      firstName = profile.full_name.split(" ")[0];
+    } else if (user.email) {
+      firstName = user.email.split("@")[0];
+    }
 
     // Onaylı rapor var mı?
     const { count } = await serviceClient

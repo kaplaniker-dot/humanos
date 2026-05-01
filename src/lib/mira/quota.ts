@@ -1,8 +1,10 @@
 // src/lib/mira/quota.ts
 // Mira chat tier + quota helpers
 // Day 13 — basit başlangıç, Day 14+ subscription katmanı eklenince genişler
+// Day 14 — types.ts'e bağlandı (ChatQuota tipi shared)
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ChatQuota } from './types'
 
 // ============================================================
 // TIER LIMITS
@@ -24,6 +26,9 @@ export const TIER_LIMITS = {
 
 export type ChatTier = keyof typeof TIER_LIMITS
 
+// Re-export — types.ts source of truth, ama eski import path'leri kırılmasın
+export type { ChatQuota } from './types'
+
 // ============================================================
 // getUserTier
 // ============================================================
@@ -43,27 +48,14 @@ export async function getUserTier(
 // ============================================================
 // getUserQuotaStatus
 // ============================================================
-// Kullanıcının mevcut quota durumunu döner:
-// - tier: hangi katmanda
-// - used: kaç mesaj kullanmış (sadece role='user' sayılır)
-// - limit: tier'ın limiti
-// - remaining: kalan mesaj sayısı
-// - exhausted: limit doldu mu
+// Kullanıcının mevcut quota durumunu döner.
+// Return tipi: ChatQuota (types.ts'ten — shared).
 // ============================================================
-
-export type QuotaStatus = {
-  tier: ChatTier
-  used: number
-  limit: number
-  remaining: number
-  exhausted: boolean
-  period: 'lifetime' | 'monthly'
-}
 
 export async function getUserQuotaStatus(
   supabase: SupabaseClient,
   userId: string,
-): Promise<QuotaStatus> {
+): Promise<ChatQuota> {
   const tier = await getUserTier(supabase, userId)
   const limits = TIER_LIMITS[tier]
 

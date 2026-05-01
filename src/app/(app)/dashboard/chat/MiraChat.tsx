@@ -1,43 +1,20 @@
 // src/app/(app)/dashboard/chat/MiraChat.tsx
 // Day 13.4 — Mira Chat Client Component
-//
-// Sorumluluklar:
-// - Mesaj listesi render
-// - Input + send
-// - Optimistic UI (kullanıcı mesajı hemen görünür)
-// - Typing indicator (Mira düşünürken)
-// - Auto-scroll bottom
-// - Quota header
-// - Soft paywall (quota tükendiğinde)
+// Day 14 — types.ts'e bağlandı (ChatQuota + ChatMessage shared)
 
 'use client'
 
 import { useState, useRef, useEffect, type FormEvent } from 'react'
+import type { ChatMessage, ChatQuota } from '@/lib/mira/types'
 
 // ============================================================
-// TYPES
+// PROPS
 // ============================================================
-
-type Message = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  createdAt: string
-}
-
-type Quota = {
-  tier: 'freemium' | 'premium'
-  used: number
-  limit: number
-  remaining: number
-  period: 'lifetime' | 'monthly'
-  exhausted: boolean
-}
 
 type Props = {
   firstName: string | null
-  initialHistory: Message[]
-  initialQuota: Quota
+  initialHistory: ChatMessage[]
+  initialQuota: ChatQuota
   hasApprovedReport: boolean
 }
 
@@ -51,8 +28,8 @@ export function MiraChat({
   initialQuota,
   hasApprovedReport,
 }: Props) {
-  const [messages, setMessages] = useState<Message[]>(initialHistory)
-  const [quota, setQuota] = useState<Quota>(initialQuota)
+  const [messages, setMessages] = useState<ChatMessage[]>(initialHistory)
+  const [quota, setQuota] = useState<ChatQuota>(initialQuota)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -83,7 +60,7 @@ export function MiraChat({
     setError(null)
 
     // Optimistic UI — kullanıcı mesajını hemen ekle
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: `temp-${Date.now()}`,
       role: 'user',
       content: trimmed,
@@ -115,7 +92,7 @@ export function MiraChat({
       }
 
       // Mira cevabını ekle
-      const assistantMessage: Message = {
+      const assistantMessage: ChatMessage = {
         id: `mira-${Date.now()}`,
         role: 'assistant',
         content: data.message,
@@ -257,7 +234,7 @@ function WelcomeMessage({
   )
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
 
   return (
