@@ -1,6 +1,12 @@
 // src/app/(app)/admin/reports/[id]/edit/page.tsx
-// Day 12 — Admin: Rapor Edit Sayfası (Server Shell)
-// Day 12 A5.6.2 — Server Component shell, EditForm yarın gelecek (A5.6.3)
+// Day 14.3.d — Admin: Rapor Edit Sayfası (content_items refactor)
+//
+// Day 12'den miras: Server Component shell, EditForm Client Component'ini
+// initial content prop'u ile besliyor. Auth, status guard, breadcrumb,
+// header — birebir korundu.
+//
+// Day 14 değişiklikleri:
+//   - Tablo: ai_reports → content_items + content_type='report' filter
 //
 // Dynamic route: /admin/reports/{report_id}/edit
 // Sadece pending_review veya rejected raporlar düzenlenebilir.
@@ -28,11 +34,12 @@ export default async function ReportEditPage({
   const { id } = await params
   const supabase = createServiceClient()
 
-  // ─── Raporu çek ───
+  // ─── Raporu çek (content_items + content_type='report' guard) ───
   const { data: report, error } = await supabase
-    .from('ai_reports')
+    .from('content_items')
     .select('*')
     .eq('id', id)
+    .eq('content_type', 'report')
     .single()
 
   if (error || !report) {

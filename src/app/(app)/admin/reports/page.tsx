@@ -1,9 +1,13 @@
 // src/app/(app)/admin/reports/page.tsx
-// Day 12 — Admin: Pending Review Raporlar Listesi
-// Day 12 fix — JOIN yerine manuel batched fetch (ai_reports.user_id FK eksik)
+// Day 14.3.a — Admin: Pending Review Reports Listesi (content_items refactor)
 //
-// Server Component. Auth zaten parent layout'ta requireAdmin() ile yapıldı.
-// Service role client kullanıyoruz (RLS bypass) — admin yetkili kabul.
+// Day 12'den miras: Manuel batched fetch pattern (profiles için).
+// Day 14: Query kaynağı ai_reports → content_items + content_type='report' filter.
+//
+// content_json polymorphic payload — eski ai_reports kolonları artık nested:
+//   - generation_metadata.cost_usd, .timing_ms, .input_tokens, .output_tokens
+//   - generation_metadata.mira_version
+//   - content_json._source.assessment_id (Day 14.2 migration tracking)
 
 import Link from 'next/link'
 import { createServiceClient } from '@/lib/supabase/service'
@@ -11,28 +15,38 @@ import { createServiceClient } from '@/lib/supabase/service'
 export const dynamic = 'force-dynamic'
 
 // ═══════════════════════════════════════════════════
-// TYPES (yerel — bu dosyaya özel)
+// TYPES
 // ═══════════════════════════════════════════════════
 
-type ReportRow = {
+type ContentItemRow = {
   id: string
   created_at: string
   status: string
-  cost_usd: number | null
-  timing_ms: number | null
-  mira_version: string | null
+  generated_by: string | null
+  generation_metadata: Record<string, unknown> | null
+  content_json: Record<string, unknown> | null
   user_id: string
-  assessment_id: string
-  assessment: {
-    assessment_path: string | null
-    selected_dimensions: string[] | null
-    completed_at: string | null
-  } | null
 }
 
 type ProfileRow = {
   id: string
   full_name: string | null
+}
+
+type GenerationMetadata = {
+  cost_usd?: number | null
+  timing_ms?: number | null
+  input_tokens?: number | null
+  output_tokens?: number | null
+  mira_version?: string | null
+  report_prompt_version?: string | null
+}
+
+type ContentSource = {
+  original_table?: string
+  original_id?: string
+  assessment_id?: string | null
+  admin_notes?: string | null
 }
 
 // ═══════════════════════════════════════════════════
@@ -42,26 +56,11 @@ type ProfileRow = {
 export default async function AdminReportsPage() {
   const supabase = createServiceClient()
 
-  // ─── Step 1: Pending review raporları çek (assessment JOIN'li) ───
+  // Pending review reports (content_type='report' filter)
   const { data: rawReports, error: reportsErr } = await supabase
-    .from('ai_reports')
-    .select(
-      `
-      id,
-      created_at,
-      status,
-      cost_usd,
-      timing_ms,
-      mira_version,
-      user_id,
-      assessment_id,
-      assessment:life_assessments!ai_reports_assessment_id_fkey(
-        assessment_path,
-        selected_dimensions,
-        completed_at
-      )
-    `,
-    )
+    .from('content_items')
+    .select('id, created_at, status, generated_by, generation_metadata, content_json, user_id')
+    .eq('content_type', 'report')
     .eq('status', 'pending_review')
     .order('created_at', { ascending: false })
 
@@ -75,9 +74,9 @@ export default async function AdminReportsPage() {
     )
   }
 
-  const reports = (rawReports ?? []) as unknown as ReportRow[]
+  const reports = (rawReports ?? []) as ContentItemRow[]
 
-  // ─── Empty state ───
+  // Empty state
   if (reports.length === 0) {
     return (
       <div className="text-center py-16">
@@ -91,7 +90,7 @@ export default async function AdminReportsPage() {
     )
   }
 
-  // ─── Step 2: Tüm user_id'leri topla, profiles'ı tek sorguda çek ───
+  // Profiles batched fetch (Day 12 pattern, hâlâ geçerli)
   const userIds = Array.from(new Set(reports.map((r) => r.user_id)))
 
   const { data: profilesData, error: profilesErr } = await supabase
@@ -101,7 +100,6 @@ export default async function AdminReportsPage() {
 
   if (profilesErr) {
     console.error('[admin/reports] Profiles fetch error:', profilesErr)
-    // Profile fetch hatası kritik değil — raporları yine de göster, isimsiz olur
   }
 
   const profiles = (profilesData ?? []) as ProfileRow[]
@@ -128,7 +126,7 @@ export default async function AdminReportsPage() {
                 Kullanıcı
               </th>
               <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-humanos-text-muted">
-                Analiz Tipi
+                Tip
               </th>
               <th className="px-6 py-4 text-left text-xs font-medium uppercase tracking-wider text-humanos-text-muted">
                 Tarih
@@ -146,34 +144,20 @@ export default async function AdminReportsPage() {
               const profile = profileMap.get(report.user_id)
               const userName = profile?.full_name ?? 'İsimsiz Kullanıcı'
 
-              const assessmentData = Array.isArray(report.assessment)
-                ? report.assessment[0]
-                : report.assessment
+              const meta = (report.generation_metadata ?? {}) as GenerationMetadata
+              const contentJsonObj = (report.content_json ?? {}) as Record<string, unknown>
+              const source = contentJsonObj._source as ContentSource | undefined
 
-              const path = assessmentData?.assessment_path ?? '—'
-              const pathLabel =
-                path === 'focused'
-                  ? 'Odaklı'
-                  : path === 'general'
-                    ? 'Genel'
-                    : path
-              const dimensions = assessmentData?.selected_dimensions ?? []
-              const dimCount = Array.isArray(dimensions) ? dimensions.length : 0
+              const date = new Date(report.created_at).toLocaleDateString('tr-TR', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
 
-              const date = new Date(report.created_at).toLocaleDateString(
-                'tr-TR',
-                {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                },
-              )
-
-              const cost = report.cost_usd
-                ? `$${report.cost_usd.toFixed(3)}`
-                : '—'
+              const cost = meta.cost_usd ? `$${meta.cost_usd.toFixed(3)}` : '—'
+              const isMigrated = source?.original_table === 'ai_reports'
 
               return (
                 <tr
@@ -181,22 +165,18 @@ export default async function AdminReportsPage() {
                   className="border-b border-humanos-border-faint last:border-0 hover:bg-humanos-accent/5 transition-colors"
                 >
                   <td className="px-6 py-4">
-                    <div className="font-medium text-humanos-text">
-                      {userName}
-                    </div>
+                    <div className="font-medium text-humanos-text">{userName}</div>
                     <div className="text-xs text-humanos-text-muted font-mono mt-0.5">
                       {report.id.slice(0, 8)}
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-humanos-text">{pathLabel}</div>
-                    <div className="text-xs text-humanos-text-muted">
-                      {dimCount} boyut
-                    </div>
+                    <div className="text-sm text-humanos-text">Yaşam Analizi</div>
+                    {isMigrated && (
+                      <div className="text-xs text-humanos-amber mt-0.5">↻ Migrated</div>
+                    )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-humanos-text-muted">
-                    {date}
-                  </td>
+                  <td className="px-6 py-4 text-sm text-humanos-text-muted">{date}</td>
                   <td className="px-6 py-4 text-right text-sm font-mono text-humanos-text-muted">
                     {cost}
                   </td>
@@ -215,9 +195,9 @@ export default async function AdminReportsPage() {
         </table>
       </div>
 
-      {/* Footer note */}
+      {/* Footer */}
       <p className="mt-4 text-xs text-humanos-text-muted text-center">
-        Mira sürümü: v2.0.0-2026-04-29 · Service: claude-sonnet-4-6
+        content_items polymorphic table · content_type=&apos;report&apos;
       </p>
     </div>
   )

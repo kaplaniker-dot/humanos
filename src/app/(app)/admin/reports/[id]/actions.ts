@@ -1,10 +1,14 @@
 // src/app/(app)/admin/reports/[id]/actions.ts
-// Day 12 — Admin: Rapor Onay/Red/Reset/Edit Server Actions
-// Day 12 A5.5 — approve, reject
-// Day 12 patch — resetReportToPending eklendi (rejected → pending_review geri al)
-// Day 12 A5.6.1 — saveReportEdit eklendi (content_json düzenleme)
+// Day 14.3.c — Admin: Rapor Onay/Red/Reset/Edit Server Actions (content_items refactor)
 //
-// Auth: requireAdmin() guard her action'da çağrılır.
+// Day 12'den miras: requireAdmin() guard, status state machine validation,
+// content schema defensive check, cache invalidation pattern — birebir korundu.
+//
+// Day 14 değişiklikleri:
+//   - Tablo: ai_reports → content_items (8 query)
+//   - Defensive guard: eq('content_type', 'report') her select sorgusunda
+//
+// 4 action: approveReport, rejectReport, resetReportToPending, saveReportEdit
 
 'use server'
 
@@ -42,9 +46,10 @@ export async function approveReport(reportId: string): Promise<ActionResult> {
   const supabase = createServiceClient()
 
   const { data: existing, error: fetchErr } = await supabase
-    .from('ai_reports')
-    .select('id, status')
+    .from('content_items')
+    .select('id, status, content_type')
     .eq('id', reportId)
+    .eq('content_type', 'report')
     .single()
 
   if (fetchErr || !existing) {
@@ -59,13 +64,14 @@ export async function approveReport(reportId: string): Promise<ActionResult> {
   }
 
   const { error: updateErr } = await supabase
-    .from('ai_reports')
+    .from('content_items')
     .update({
       status: 'approved',
       approved_by: adminUser.user.id,
       approved_at: new Date().toISOString(),
     })
     .eq('id', reportId)
+    .eq('content_type', 'report')
 
   if (updateErr) {
     console.error('[approveReport] Update error:', updateErr)
@@ -101,9 +107,10 @@ export async function rejectReport(
   const supabase = createServiceClient()
 
   const { data: existing, error: fetchErr } = await supabase
-    .from('ai_reports')
-    .select('id, status')
+    .from('content_items')
+    .select('id, status, content_type')
     .eq('id', reportId)
+    .eq('content_type', 'report')
     .single()
 
   if (fetchErr || !existing) {
@@ -118,12 +125,13 @@ export async function rejectReport(
   }
 
   const { error: updateErr } = await supabase
-    .from('ai_reports')
+    .from('content_items')
     .update({
       status: 'rejected',
       rejected_reason: reason.trim(),
     })
     .eq('id', reportId)
+    .eq('content_type', 'report')
 
   if (updateErr) {
     console.error('[rejectReport] Update error:', updateErr)
@@ -151,9 +159,10 @@ export async function resetReportToPending(
   const supabase = createServiceClient()
 
   const { data: existing, error: fetchErr } = await supabase
-    .from('ai_reports')
-    .select('id, status')
+    .from('content_items')
+    .select('id, status, content_type')
     .eq('id', reportId)
+    .eq('content_type', 'report')
     .single()
 
   if (fetchErr || !existing) {
@@ -168,12 +177,13 @@ export async function resetReportToPending(
   }
 
   const { error: updateErr } = await supabase
-    .from('ai_reports')
+    .from('content_items')
     .update({
       status: 'pending_review',
       rejected_reason: null,
     })
     .eq('id', reportId)
+    .eq('content_type', 'report')
 
   if (updateErr) {
     console.error('[resetReportToPending] Update error:', updateErr)
@@ -210,9 +220,10 @@ export async function saveReportEdit(
 
   // ─── Mevcut rapor kontrolü ───
   const { data: existing, error: fetchErr } = await supabase
-    .from('ai_reports')
-    .select('id, status')
+    .from('content_items')
+    .select('id, status, content_type')
     .eq('id', payload.reportId)
+    .eq('content_type', 'report')
     .single()
 
   if (fetchErr || !existing) {
@@ -261,9 +272,10 @@ export async function saveReportEdit(
 
   // ─── Update ───
   const { error: updateErr } = await supabase
-    .from('ai_reports')
+    .from('content_items')
     .update(updatePayload)
     .eq('id', payload.reportId)
+    .eq('content_type', 'report')
 
   if (updateErr) {
     console.error('[saveReportEdit] Update error:', updateErr)

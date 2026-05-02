@@ -1,9 +1,15 @@
 // src/app/(app)/admin/reports/[id]/page.tsx
-// Day 12 — Admin: Rapor Detay Sayfası
-// Day 12 A5.5 — ActionButtons component (approve/reject)
-// Day 12 patch — rejected raporlar için "Yeniden Değerlendir" gösterimi
+// Day 14.3.b — Admin: Rapor Detay Sayfası (content_items refactor)
 //
-// Dynamic route: /admin/reports/{report_id}
+// Day 12'den miras: Mira'nın 7 section'lı render mantığı, status badge,
+// ActionButtons entegrasyonu — birebir korundu.
+//
+// Day 14 değişiklikleri:
+//   - Query kaynağı: ai_reports → content_items + content_type='report' filter
+//   - Metadata: direct kolonlar yerine generation_metadata JSONB içinden
+//   - Defensive guard: content_type !== 'report' ise notFound()
+//
+// Mira content_json schema (Day 11 V2) — birebir aynı, dokunulmadı.
 
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
@@ -49,6 +55,22 @@ type MiraReportContent = {
     uncertainty_flags?: string[]
     follow_up_questions?: string[]
   }
+  // Day 14.2 migration tracking
+  _source?: {
+    original_table?: string
+    original_id?: string
+    assessment_id?: string | null
+    admin_notes?: string | null
+  }
+}
+
+type GenerationMetadata = {
+  cost_usd?: number | null
+  timing_ms?: number | null
+  input_tokens?: number | null
+  output_tokens?: number | null
+  mira_version?: string | null
+  report_prompt_version?: string | null
 }
 
 // ═══════════════════════════════════════════════════
@@ -64,12 +86,17 @@ export default async function ReportDetailPage({
   const supabase = createServiceClient()
 
   const { data: report, error } = await supabase
-    .from('ai_reports')
+    .from('content_items')
     .select('*')
     .eq('id', id)
     .single()
 
   if (error || !report) {
+    notFound()
+  }
+
+  // Defensive guard — bu sayfa sadece 'report' tipini render eder
+  if (report.content_type !== 'report') {
     notFound()
   }
 
@@ -85,6 +112,8 @@ export default async function ReportDetailPage({
   const sections = content.sections ?? {}
   const metadata = content.metadata ?? {}
 
+  const meta = (report.generation_metadata ?? {}) as GenerationMetadata
+
   const createdDate = new Date(report.created_at).toLocaleDateString('tr-TR', {
     day: 'numeric',
     month: 'long',
@@ -93,13 +122,11 @@ export default async function ReportDetailPage({
     minute: '2-digit',
   })
 
-  const cost = report.cost_usd ? `$${report.cost_usd.toFixed(4)}` : '—'
-  const timing = report.timing_ms
-    ? `${(report.timing_ms / 1000).toFixed(1)}s`
-    : '—'
+  const cost = meta.cost_usd ? `$${meta.cost_usd.toFixed(4)}` : '—'
+  const timing = meta.timing_ms ? `${(meta.timing_ms / 1000).toFixed(1)}s` : '—'
   const tokens =
-    report.input_tokens && report.output_tokens
-      ? `${report.input_tokens.toLocaleString('tr-TR')} + ${report.output_tokens.toLocaleString('tr-TR')}`
+    meta.input_tokens && meta.output_tokens
+      ? `${meta.input_tokens.toLocaleString('tr-TR')} + ${meta.output_tokens.toLocaleString('tr-TR')}`
       : '—'
 
   const statusBadge =
@@ -114,6 +141,9 @@ export default async function ReportDetailPage({
   // Action buttons hangi state'lerde gösterilecek
   const showActions =
     report.status === 'pending_review' || report.status === 'rejected'
+
+  // Migration tracking gösterimi (Day 14.2'den taşınan raporlar için)
+  const isMigrated = content._source?.original_table === 'ai_reports'
 
   return (
     <div className="max-w-[860px] mx-auto">
@@ -137,6 +167,11 @@ export default async function ReportDetailPage({
             <p className="text-sm text-humanos-text-muted font-mono">
               {report.id}
             </p>
+            {isMigrated && (
+              <p className="text-xs text-humanos-amber mt-1">
+                ↻ ai_reports&apos;tan migrate edildi (orijinal: {content._source?.original_id?.slice(0, 8)})
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span
@@ -203,9 +238,7 @@ export default async function ReportDetailPage({
                           key={i}
                           className="flex gap-2 text-humanos-text leading-relaxed"
                         >
-                          <span className="text-humanos-accent mt-0.5">
-                            ✓
-                          </span>
+                          <span className="text-humanos-accent mt-0.5">✓</span>
                           <span>{item}</span>
                         </li>
                       ))}
