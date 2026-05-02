@@ -1,5 +1,5 @@
 // src/app/api/chat/route.ts
-// Mira Chat API — Day 13.3
+// Mira Chat API — Day 13.3 (route) + Day 14.4 (content_items refactor)
 // POST /api/chat
 //
 // Akış:
@@ -141,10 +141,14 @@ export async function POST(request: Request) {
 
     // ─── 5. ONAYLI RAPOR BAĞLAMI (varsa) ───
     let reportContext = ''
+    // Day 14.4 — content_items'a refactor edildi
+    // ai_reports → content_items + content_type='report' defensive guard
+    // Day 18+ polymorphic genişleme için future-ready: content_type IN (...)
     const { data: latestReport } = await serviceClient
-      .from('ai_reports')
+      .from('content_items')
       .select('content_json, created_at')
       .eq('user_id', user.id)
+      .eq('content_type', 'report')
       .eq('status', 'approved')
       .order('approved_at', { ascending: false })
       .limit(1)
